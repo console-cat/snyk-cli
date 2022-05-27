@@ -1,0 +1,15 @@
+services:
+  cliv2_kerberos:
+    build: .
+    environment:
+      - KERBEROS_USERNAME=administrator
+      - KERBEROS_PASSWORD=password123
+      - HTTP_PROXY_PORT=3128
+    # network_mode: host
+    ports:
+      - "3128:3128"
+    hostname: kerberos.snyk.local
+    volumes:
+      - ./scripts:/etc/cliv2/scripts
+      - ${TEST_SNYK_COMMAND}:/etc/cliv2/bin/snyk
+      - ${PROJECT_PATH}:/etc/cliv2/project
