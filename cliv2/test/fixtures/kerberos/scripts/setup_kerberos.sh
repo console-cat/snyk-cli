@@ -58,6 +58,8 @@ EOL
 cat /etc/squid/squid.conf
 service squid restart
 
+sleep 1
+
 echo "Getting ticket for Kerberos user"
 echo -n "${KERBEROS_PASSWORD}" | kinit "${KERBEROS_USERNAME}@${KERBEROS_REALM^^}"
 
