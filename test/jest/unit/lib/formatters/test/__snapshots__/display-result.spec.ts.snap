@@ -247,7 +247,7 @@ Issues with no direct upgrade or patch:
     [URL] in django@1.6.1
     introduced by:
     django@1.6.1
-  This issue was fixed in versions: 2.2.18, 3.0.12, 3.1.6
+    This issue was fixed in versions: 2.2.18, 3.0.12, 3.1.6
 
 
 

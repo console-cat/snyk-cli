@@ -376,7 +376,7 @@ function constructUnfixableText(
     return [];
   }
   const unfixableIssuesTextArray = [
-    chalk.bold.white('\nIssues with no direct upgrade or patch:'),
+    chalk.bold('\nIssues with no direct upgrade or patch:'),
   ];
   for (const issue of unresolved) {
     const issueInfo = basicVulnInfo[issue.id];
@@ -387,10 +387,10 @@ function constructUnfixableText(
 
     const extraInfo =
       issue.fixedIn && issue.fixedIn.length
-        ? `\n  This issue was fixed in versions: ${chalk.bold(
+        ? `\n    This issue was fixed in versions: ${chalk.bold(
             issue.fixedIn.join(', '),
           )}`
-        : '\n  No upgrade or patch available';
+        : '\n    No upgrade or patch available';
     unfixableIssuesTextArray.push(
       formatIssue(
         issue.id,
@@ -489,7 +489,9 @@ export function formatIssue(
   return (
     colorTextBySeverity(
       severity,
-      `  ${icon.ISSUE} [${titleCaseText(severity,)}${originalSeverityStr}] ${chalk.bold(title)}${newBadge}`,
+      `  ${icon.ISSUE} [${titleCaseText(
+        severity,
+      )}${originalSeverityStr}] ${chalk.bold(title)}${newBadge}`,
     ) +
     reachabilityText +
     '\n    ' +
