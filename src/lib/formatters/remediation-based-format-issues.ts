@@ -161,7 +161,7 @@ function constructLicenseText(
     return [];
   }
 
-  const licenseTextArray = [chalk.bold.green('\nLicense issues:')];
+  const licenseTextArray = [chalk.bold('\nLicense issues:')];
 
   for (const id of Object.keys(basicLicenseInfo)) {
     const licenseText = formatIssue(
@@ -193,7 +193,7 @@ function constructPatchesText(
   if (!(Object.keys(patches).length > 0)) {
     return [];
   }
-  const patchedTextArray = [chalk.bold.green('\nPatchable issues:')];
+  const patchedTextArray = [chalk.bold('\nPatchable issues:')];
   for (const id of Object.keys(patches)) {
     if (!basicVulnInfo[id]) {
       continue;
@@ -288,7 +288,7 @@ function constructUpgradesText(
     return [];
   }
 
-  const upgradeTextArray = [chalk.bold.green('\nIssues to fix by upgrading:')];
+  const upgradeTextArray = [chalk.bold('\nIssues to fix by upgrading:')];
   processUpgrades(
     upgradeTextArray,
     upgrades,
@@ -311,7 +311,7 @@ function constructPinText(
 
   const upgradeTextArray: string[] = [];
   upgradeTextArray.push(
-    chalk.bold.green('\nIssues to fix by upgrading dependencies:'),
+    chalk.bold('\nIssues to fix by upgrading dependencies:'),
   );
 
   // First, direct upgrades
@@ -489,9 +489,7 @@ export function formatIssue(
   return (
     colorTextBySeverity(
       severity,
-      `  ${icon.ISSUE} ${chalk.bold(title)}${newBadge} [${titleCaseText(
-        severity,
-      )} Severity${originalSeverityStr}]`,
+      `  ${icon.ISSUE} [${titleCaseText(severity,)}${originalSeverityStr}] ${chalk.bold(title)}${newBadge}`,
     ) +
     reachabilityText +
     '\n    ' +
