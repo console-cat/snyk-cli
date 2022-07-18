@@ -4,11 +4,14 @@ services:
     environment:
       - KERBEROS_USERNAME=administrator
       - KERBEROS_PASSWORD=password123
-      - HTTP_PROXY_PORT=3128
-    # network_mode: host
+      - HTTP_PROXY_PORT=${HTTP_PROXY_PORT}
     ports:
-      - "3128:3128"
-    hostname: kerberos.snyk.local
+      - "${HTTP_PROXY_PORT}:${HTTP_PROXY_PORT}"
+    expose:
+      - "${HTTP_PROXY_PORT}"
+    hostname: "${PROXY_HOSTNAME}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./scripts:/etc/cliv2/scripts
       - ${TEST_SNYK_COMMAND}:/etc/cliv2/bin/snyk

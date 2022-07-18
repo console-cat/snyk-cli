@@ -4,45 +4,91 @@ import {
   createProjectFromWorkspace,
   TestProject,
 } from '../../../test/jest/util/createProject';
-import { startCommand, TestCLI } from '../../../test/jest/util/startSnykCLI';
+import { startCommand } from '../../../test/jest/util/startSnykCLI';
 
 jest.setTimeout(1000 * 60);
 
+// Global test configuration
 const dockerComposeFile = path.resolve(
   'test/fixtures/kerberos/docker-compose.yml',
 );
+const containerName = 'kerberos_cliv2_kerberos_1';
+const hostnameFakeServer = 'host.docker.internal';
+const hostnameProxy = 'kerberos.snyk.local';
+const proxyPort = '3128';
+const port = process.env.PORT || process.env.SNYK_PORT || '12345';
+const baseApi = '/api/v1';
+const SNYK_API = 'http://' + hostnameFakeServer + ':' + port + baseApi;
+const HTTP_PROXY = 'http://' + hostnameProxy + ':' + proxyPort;
 
-async function startKerberosEnvironment(
-  project: TestProject,
-  proxyPort: number,
-): Promise<TestCLI> {
+function getDockerOptions(projectPath = '') {
+  const dockerOptions = {
+    env: {
+      ...process.env,
+      HTTP_PROXY_PORT: proxyPort,
+      PROJECT_PATH: projectPath,
+      PROXY_HOSTNAME: hostnameProxy,
+      SNYK_API: SNYK_API,
+    },
+  };
+  return dockerOptions;
+}
+
+function getDockerExecSnykCommand(env: Record<string, string>, cmd = 'test') {
+  const command = [
+    'exec',
+    '-e',
+    'SNYK_HTTP_PROTOCOL_UPGRADE=0',
+    '-e',
+    `SNYK_API=${env.SNYK_API}`,
+    '-e',
+    `SNYK_TOKEN=${env.SNYK_TOKEN}`,
+    '-e',
+    `HTTP_PROXY=${env.HTTP_PROXY}`,
+    '-e',
+    `HTTPS_PROXY=${env.HTTP_PROXY}`,
+    '-w',
+    '/etc/cliv2/project',
+    containerName,
+    '/etc/cliv2/bin/snyk',
+    cmd,
+    '--debug',
+  ];
+  return command;
+}
+
+async function startKerberosEnvironment(project: TestProject): Promise<void> {
   // Stop any orphaned containers from previous runs.
   await stopKerberosEnvironment();
 
   const dockerUp = await startCommand(
     'docker-compose',
     ['--file', dockerComposeFile, 'up', '--build'],
-    {
-      env: {
-        ...process.env,
-        HTTP_PROXY_PORT: `${proxyPort}`,
-        PROJECT_PATH: project.path(),
-      },
-    },
+    getDockerOptions(project.path()),
   );
   await expect(dockerUp).toDisplay('Kerberos setup complete.', {
     timeout: 30_000,
   });
-  return dockerUp;
 }
 
 async function stopKerberosEnvironment(): Promise<void> {
-  const dockerDown = await startCommand('docker-compose', [
-    '--file',
-    dockerComposeFile,
-    'down',
-  ]);
+  const dockerDown = await startCommand(
+    'docker-compose',
+    ['--file', dockerComposeFile, 'down'],
+    getDockerOptions(),
+  );
   await expect(dockerDown).toExitWith(0, { timeout: 30_000 });
+}
+
+async function getAccessLog(): Promise<string> {
+  const check = await startCommand('docker', [
+    'exec',
+    containerName,
+    'cat',
+    '/var/log/squid/access.log',
+  ]);
+  await expect(check).toExitWith(0);
+  return check.stdout.get();
 }
 
 describe('kerberos', () => {
@@ -58,20 +104,16 @@ describe('kerberos', () => {
   let server: FakeServer;
   let env: Record<string, string>;
   let project: TestProject;
-  let kerberosServer: TestCLI;
 
   beforeAll(async () => {
     project = await createProjectFromWorkspace('npm-package');
-    const proxyPort = 3128;
-    kerberosServer = await startKerberosEnvironment(project, proxyPort);
+    await startKerberosEnvironment(project);
 
-    const port = process.env.PORT || process.env.SNYK_PORT || '12345';
-    const baseApi = '/api/v1';
     env = {
       ...process.env,
-      SNYK_API: 'http://localhost:' + port + baseApi,
+      SNYK_API: SNYK_API,
       SNYK_TOKEN: '123456789',
-      HTTP_PROXY: `http://kerberos.snyk.local:3128`,
+      HTTP_PROXY: HTTP_PROXY,
     };
     server = fakeServer(baseApi, env.SNYK_TOKEN);
     await server.listenPromise(port);
@@ -84,28 +126,44 @@ describe('kerberos', () => {
   afterAll(async () => {
     await server.closePromise();
     await stopKerberosEnvironment();
-    await expect(kerberosServer).toExitWith(0);
   });
 
-  it('fails to connect', async () => {
+  it('fails to run snyk test due to missing --proxy-negotiate', async () => {
     // How to get project fixtures into docker container?
     // - Allow function to take output path instead of tmp dir.
     // - Basically, nested workspaces.
-    const cli = await startCommand('docker', [
-      'exec',
-      '-e',
-      `SNYK_API=${env.SNYK_API}`,
-      '-e',
-      `SNYK_TOKEN=${env.SNYK_TOKEN}`,
-      '-e',
-      `HTTP_PROXY=${env.HTTP_PROXY}`,
-      '-w',
-      '/etc/cliv2/project',
-      'kerberos_cliv2_kerberos_1',
-      '/etc/cliv2/bin/snyk',
-      'test',
-      '-d',
-    ]);
+    const logOnEntry = await getAccessLog();
+
+    // run snyk test
+    const cli = await startCommand('docker', getDockerExecSnykCommand(env));
     await expect(cli).toExitWith(2);
+
+    const logOnExit = await getAccessLog();
+    const additionalLogEntries = logOnExit.substring(logOnEntry.length);
+    expect(additionalLogEntries.includes('TCP_DENIED/407')).toBeTruthy();
+    expect(
+      additionalLogEntries.includes(
+        'CONNECT ' + hostnameFakeServer + ':' + port,
+      ),
+    ).toBeFalsy();
+  });
+
+  it('successfully runs snyk test', async () => {
+    const logOnEntry = await getAccessLog();
+
+    // run snyk test
+    const cmd = getDockerExecSnykCommand(env);
+    cmd.push('--proxy-negotiate');
+    const cli = await startCommand('docker', cmd);
+    await expect(cli).toExitWith(0);
+
+    const logOnExit = await getAccessLog();
+    const additionalLogEntries = logOnExit.substring(logOnEntry.length);
+    expect(additionalLogEntries.includes('TCP_TUNNEL/200')).toBeTruthy();
+    expect(
+      additionalLogEntries.includes(
+        'CONNECT ' + hostnameFakeServer + ':' + port,
+      ),
+    ).toBeTruthy();
   });
 });

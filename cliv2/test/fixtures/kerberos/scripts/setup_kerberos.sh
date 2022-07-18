@@ -73,4 +73,4 @@ echo "Checking Snyk CLI"
 
 echo "Kerberos setup complete."
 echo "Keeping container running... Press CTRL+C to stop."
-tail -F /var/log/krb5kdc.log /var/log/kadmin.log /var/log/krb5lib.log /var/log/squid/access.log
+tail -F /var/log/squid/access.log
