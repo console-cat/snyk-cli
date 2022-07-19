@@ -1,5 +1,6 @@
 services:
   cliv2_kerberos:
+    container_name: ${CONTAINER_NAME}
     build: .
     environment:
       - KERBEROS_USERNAME=administrator
