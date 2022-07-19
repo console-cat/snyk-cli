@@ -37,7 +37,9 @@ echo "Creating principals for tests"
 kadmin.local -q "addprinc -pw ${KERBEROS_PASSWORD} ${KERBEROS_USERNAME}"
 
 echo "Adding HTTP principal for Kerberos and create keytab"
+kadmin.local -q "addprinc -randkey HTTP/localhost"
 kadmin.local -q "addprinc -randkey HTTP/${KERBEROS_HOSTNAME}"
+kadmin.local -q "ktadd -k ${KRB5_KTNAME} HTTP/localhost"
 kadmin.local -q "ktadd -k ${KRB5_KTNAME} HTTP/${KERBEROS_HOSTNAME}"
 chmod 777 "${KRB5_KTNAME}"
 
@@ -46,11 +48,11 @@ service krb5-kdc restart
 
 echo "Configuring Squid HTTP proxy"
 cat > /etc/squid/squid.conf << EOL
-auth_param negotiate program /usr/lib/squid/negotiate_kerberos_auth
+auth_param negotiate program /usr/lib/squid/negotiate_wrapper_auth --kerberos /usr/lib/squid/negotiate_kerberos_auth -d -s HTTP/localhost --ntlm /usr/lib/squid/ntlm_fake_auth
 auth_param negotiate children 10
 auth_param negotiate keep_alive on
 acl auth proxy_auth REQUIRED
-http_port ${HTTP_PROXY_PORT}
+http_port 0.0.0.0:${HTTP_PROXY_PORT}
 http_access deny !auth
 http_access allow auth
 http_access deny all
@@ -65,11 +67,11 @@ echo -n "${KERBEROS_PASSWORD}" | kinit "${KERBEROS_USERNAME}@${KERBEROS_REALM^^}
 
 echo "Checking HTTP proxy"
 curl --verbose --head --retry 5 \
-    --proxy "http://${KERBEROS_HOSTNAME}:${HTTP_PROXY_PORT}" --proxy-negotiate -u ":" \
+    --proxy "http://localhost:${HTTP_PROXY_PORT}" --proxy-negotiate -u ":" \
     "https://snyk.io"
 
-echo "Checking Snyk CLI"
-/etc/cliv2/bin/snyk --version
+cp /tmp/krb5cc_0 /etc/cliv2/scripts/krb5_cache
+cp /etc/krb5.conf /etc/cliv2/scripts/krb5.conf
 
 echo "Kerberos setup complete."
 echo "Keeping container running... Press CTRL+C to stop."
