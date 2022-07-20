@@ -72,7 +72,7 @@ async function startProxyEnvironment(): Promise<void> {
     getDockerOptions(),
   );
   await expect(dockerUp).toDisplay('Kerberos setup complete.', {
-    timeout: 30_000,
+    timeout: 60_000,
   });
 }
 
