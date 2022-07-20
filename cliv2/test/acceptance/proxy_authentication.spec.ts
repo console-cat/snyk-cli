@@ -46,6 +46,22 @@ function getDockerOptions() {
   return dockerOptions;
 }
 
+async function isDockerAvailable(): Promise<boolean> {
+  let result = false;
+
+  try {
+    const process = await startCommand('docker', ['--version']);
+    const errorCode = process.wait({ timeout: 30_000 });
+    if ((await errorCode).valueOf() == 0) {
+      result = true;
+    }
+  } catch {
+    result = false;
+  }
+
+  return result;
+}
+
 async function startProxyEnvironment(): Promise<void> {
   // Stop any orphaned containers from previous runs.
   await stopProxyEnvironment();
@@ -108,8 +124,15 @@ describe('Proxy Authentication', () => {
     let server: FakeServer;
     let env: Record<string, string>;
     let project: TestProject;
+    let hasDockerInstalled: boolean;
 
     beforeAll(async () => {
+      hasDockerInstalled = (await isDockerAvailable()).valueOf();
+      if (false == hasDockerInstalled) {
+        console.warn('These tests require Docker to be installed!');
+      }
+      expect(hasDockerInstalled).toBe(true);
+
       project = await createProjectFromWorkspace('npm-package');
       await startProxyEnvironment();
 
@@ -125,14 +148,18 @@ describe('Proxy Authentication', () => {
     });
 
     afterEach(() => {
-      server.restore();
+      if (hasDockerInstalled) {
+        server.restore();
+      }
     });
 
     afterAll(async () => {
-      await server.closePromise();
-      await stopProxyEnvironment();
-      unlink(path.join(scriptsPath, KRB5_CACHE_FILE), () => {});
-      unlink(path.join(scriptsPath, KRB5_CONFIG_FILE), () => {});
+      if (hasDockerInstalled) {
+        await server.closePromise();
+        await stopProxyEnvironment();
+        unlink(path.join(scriptsPath, KRB5_CACHE_FILE), () => {});
+        unlink(path.join(scriptsPath, KRB5_CONFIG_FILE), () => {});
+      }
     });
 
     it('fails to run snyk test due to missing --proxy-negotiate', async () => {
