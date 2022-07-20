@@ -320,6 +320,28 @@ jobs:
             unset SNYK_API
             unset SNYK_API_KEY
             shellspec -f d -e REGRESSION_TEST=1
+  debug-windows-docker:
+    executor: win/default
+    working_directory: C:\Users\circleci\snyk
+    steps:
+      - run:
+          name: Configuring Git
+          command: git config --global core.autocrlf false
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: View Docker environment
+          command: |
+            docker version
+      - run:
+          name: Install Docker Compose
+          command: 
+            Invoke-WebRequest "https://github.com/docker/compose/releases/download/v2.6.1/docker-compose-Windows-x86_64.exe" -UseBasicParsing -OutFile $Env:ProgramFiles\Docker\docker-compose.exe
+      - run:
+          name: View Docker Compose
+          command: |
+            docker-compose version
   test-windows:
     parameters:
       test_snyk_command:
@@ -840,6 +862,8 @@ workflows:
                 - snyk-for-docker-desktop-darwin-x64.tar.gz
                 - snyk-for-docker-desktop-darwin-arm64.tar.gz
                 - docker-mac-signed-bundle.tar.gz
+      - debug-windows-docker:
+          name: Debug Docker things on Windows
       - test-windows:
           name: Acceptance Tests (snyk-win.exe)
           context: nodejs-install
